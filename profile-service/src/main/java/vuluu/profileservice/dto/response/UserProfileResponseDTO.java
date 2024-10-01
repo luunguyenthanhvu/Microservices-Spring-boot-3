@@ -15,8 +15,8 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserProfileResponseDTO {
   String id;
-  String firstname;
-  String lastname;
+  String firstName;
+  String lastName;
   LocalDate dob;
   String city;
 }

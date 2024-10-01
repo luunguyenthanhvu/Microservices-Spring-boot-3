@@ -14,8 +14,9 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProfileCreationRequestDTO {
-  String firstname;
-  String lastname;
+  String userId;
+  String firstName;
+  String lastName;
   LocalDate dob;
   String city;
 }
