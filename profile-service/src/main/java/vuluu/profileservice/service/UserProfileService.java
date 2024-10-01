@@ -1,5 +1,6 @@
 package vuluu.profileservice.service;
 
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -30,5 +31,10 @@ public class UserProfileService {
     UserProfile userProfile = userProfileRepository.findById(id)
         .orElseThrow(() -> new RuntimeException());
     return userProfileMapper.toUserProfileResponseDTO(userProfile);
+  }
+
+  public List<UserProfileResponseDTO> getUsers() {
+    var users = userProfileRepository.findAll();
+    return userProfileMapper.toListUserProfileResponseDTO(users);
   }
 }
