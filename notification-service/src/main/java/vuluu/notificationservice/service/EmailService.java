@@ -19,7 +19,7 @@ import vuluu.notificationservice.repository.httpclient.EmailClient;
 public class EmailService {
 
   EmailClient emailClient;
-  String apiKey = "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";
+  String apiKey = "";
 
   public EmailResponse sendEmail(SendEmailRequest request) {
     EmailRequest emailRequest =
