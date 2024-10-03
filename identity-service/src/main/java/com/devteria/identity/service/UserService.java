@@ -1,13 +1,5 @@
 package com.devteria.identity.service;
 
-import java.util.HashSet;
-import java.util.List;
-
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-
 import com.devteria.identity.constant.PredefinedRole;
 import com.devteria.identity.dto.request.UserCreationRequest;
 import com.devteria.identity.dto.request.UserUpdateRequest;
@@ -21,80 +13,95 @@ import com.devteria.identity.mapper.UserMapper;
 import com.devteria.identity.repository.RoleRepository;
 import com.devteria.identity.repository.UserRepository;
 import com.devteria.identity.repository.httpclient.ProfileClient;
-
+import java.util.HashSet;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class UserService {
-    UserRepository userRepository;
-    RoleRepository roleRepository;
-    UserMapper userMapper;
-    ProfileMapper profileMapper;
-    PasswordEncoder passwordEncoder;
-    ProfileClient profileClient;
 
-    public UserResponse createUser(UserCreationRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) throw new AppException(ErrorCode.USER_EXISTED);
+  UserRepository userRepository;
+  RoleRepository roleRepository;
+  UserMapper userMapper;
+  ProfileMapper profileMapper;
+  PasswordEncoder passwordEncoder;
+  ProfileClient profileClient;
+  KafkaTemplate<String, String> kafkaTemplate;
 
-        User user = userMapper.toUser(request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-
-        HashSet<Role> roles = new HashSet<>();
-        roleRepository.findById(PredefinedRole.USER_ROLE).ifPresent(roles::add);
-
-        user.setRoles(roles);
-        user = userRepository.save(user);
-
-        var profileRequest = profileMapper.toProfileCreationRequest(request);
-        profileRequest.setUserId(user.getId());
-
-        profileClient.createProfile(profileRequest);
-
-        return userMapper.toUserResponse(user);
+  public UserResponse createUser(UserCreationRequest request) {
+    if (userRepository.existsByUsername(request.getUsername())) {
+      throw new AppException(ErrorCode.USER_EXISTED);
     }
 
-    public UserResponse getMyInfo() {
-        var context = SecurityContextHolder.getContext();
-        String name = context.getAuthentication().getName();
+    User user = userMapper.toUser(request);
+    user.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        User user = userRepository.findByUsername(name).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    HashSet<Role> roles = new HashSet<>();
+    roleRepository.findById(PredefinedRole.USER_ROLE).ifPresent(roles::add);
 
-        return userMapper.toUserResponse(user);
-    }
+    user.setRoles(roles);
+    user = userRepository.save(user);
 
-    @PreAuthorize("hasRole('ADMIN')")
-    public UserResponse updateUser(String userId, UserUpdateRequest request) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    var profileRequest = profileMapper.toProfileCreationRequest(request);
+    profileRequest.setUserId(user.getId());
 
-        userMapper.updateUser(user, request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+    profileClient.createProfile(profileRequest);
 
-        var roles = roleRepository.findAllById(request.getRoles());
-        user.setRoles(new HashSet<>(roles));
+    // publish message to kafka
+    kafkaTemplate.send("onboard-successful", "Welcome our new member" + user.getUsername());
+    return userMapper.toUserResponse(user);
+  }
 
-        return userMapper.toUserResponse(userRepository.save(user));
-    }
+  public UserResponse getMyInfo() {
+    var context = SecurityContextHolder.getContext();
+    String name = context.getAuthentication().getName();
 
-    @PreAuthorize("hasRole('ADMIN')")
-    public void deleteUser(String userId) {
-        userRepository.deleteById(userId);
-    }
+    User user = userRepository.findByUsername(name)
+        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-    @PreAuthorize("hasRole('ADMIN')")
-    public List<UserResponse> getUsers() {
-        log.info("In method get Users");
-        return userRepository.findAll().stream().map(userMapper::toUserResponse).toList();
-    }
+    return userMapper.toUserResponse(user);
+  }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    public UserResponse getUser(String id) {
-        return userMapper.toUserResponse(
-                userRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED)));
-    }
+  @PreAuthorize("hasRole('ADMIN')")
+  public UserResponse updateUser(String userId, UserUpdateRequest request) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+    userMapper.updateUser(user, request);
+    user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+    var roles = roleRepository.findAllById(request.getRoles());
+    user.setRoles(new HashSet<>(roles));
+
+    return userMapper.toUserResponse(userRepository.save(user));
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
+  public void deleteUser(String userId) {
+    userRepository.deleteById(userId);
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
+  public List<UserResponse> getUsers() {
+    log.info("In method get Users");
+    return userRepository.findAll().stream().map(userMapper::toUserResponse).toList();
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
+  public UserResponse getUser(String id) {
+    return userMapper.toUserResponse(
+        userRepository.findById(id)
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED)));
+  }
 }
